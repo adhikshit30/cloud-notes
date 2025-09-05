@@ -10,7 +10,27 @@ import shareRoutes from "./routes/share.routes.js";
 dotenv.config();
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+/* ---- CORS: allow multiple origins (local + prod) ---- */
+const allowed = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      // allow non-browser tools (curl/Postman) which send no Origin
+      if (!origin) return cb(null, true);
+      if (allowed.includes(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: "Content-Type,Authorization",
+    optionsSuccessStatus: 204,
+  })
+);
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -20,9 +40,9 @@ app.use("/api/notes", noteRoutes);
 app.use("/api/shares", shareRoutes);
 
 const PORT = process.env.PORT || 8080;
-connectDB().then(() => {
-app.listen(PORT, () => console.log(`API listening on :${PORT}`));
-}).catch(err => {
-console.error("DB connection failed", err);
-process.exit(1);
-});
+connectDB()
+  .then(() => app.listen(PORT, () => console.log(`API listening on :${PORT}`)))
+  .catch(err => {
+    console.error("DB connection failed", err);
+    process.exit(1);
+  });
